@@ -398,3 +398,31 @@ shopee-mock/
         ├── console.manager.ts           (122L)   # ConsoleManager (/console, /api/console/*)
         └── schema-fallback.manager.ts    (41L)   # SchemaFallbackManager (455-schema fallback & 404)
 ```
+
+---
+
+## 9. Upstream Repositories & BibTeX References (`materials/references.bib`)
+
+```bibtex
+@software{potatoaey18_shopee_mock_2025,
+  author       = {potatoaey18},
+  title        = {{shopee-mock}: Shopee Open Platform v2 Mock Server},
+  year         = {2025},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/potatoaey18/shopee-mock}},
+  url          = {https://github.com/potatoaey18/shopee-mock}
+}
+
+@software{nguyen_shopee_sdk_2026,
+  author       = {Nguyen Cong, Minh},
+  title        = {{shopee-sdk}: Community-Maintained TypeScript SDK for Shopee Open Platform v2},
+  version      = {2.10.0},
+  year         = {2026},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/congminh1254/shopee-sdk}},
+  url          = {https://github.com/congminh1254/shopee-sdk}
+}
+```
+

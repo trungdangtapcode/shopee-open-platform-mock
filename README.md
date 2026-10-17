@@ -26,3 +26,34 @@ Full-featured **Shopee Open Platform v2** local mock backend (`shopee-mock`), **
 - **Shopee Seller Centre UI**: `http://localhost:3099/`
 - **OAuth 2.0 Authorize Page**: `http://localhost:3099/auth`
 - **API v2 Base URL**: `http://localhost:3099/api/v2`
+
+## Upstream Credits & BibTeX References
+
+This workspace builds upon and integrates the following open-source repositories (also saved in [`materials/references.bib`](./materials/references.bib)):
+
+- **Shopee Mock Server**: [`potatoaey18/shopee-mock`](https://github.com/potatoaey18/shopee-mock)
+- **TypeScript Shopee SDK & 455 v2 Schemas**: [`congminh1254/shopee-sdk`](https://github.com/congminh1254/shopee-sdk)
+
+```bibtex
+@software{potatoaey18_shopee_mock_2025,
+  author       = {potatoaey18},
+  title        = {{shopee-mock}: Shopee Open Platform v2 Mock Server},
+  year         = {2025},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/potatoaey18/shopee-mock}},
+  url          = {https://github.com/potatoaey18/shopee-mock}
+}
+
+@software{nguyen_shopee_sdk_2026,
+  author       = {Nguyen Cong, Minh},
+  title        = {{shopee-sdk}: Community-Maintained TypeScript SDK for Shopee Open Platform v2},
+  version      = {2.10.0},
+  year         = {2026},
+  publisher    = {GitHub},
+  journal      = {GitHub repository},
+  howpublished = {\url{https://github.com/congminh1254/shopee-sdk}},
+  url          = {https://github.com/congminh1254/shopee-sdk}
+}
+```
+
