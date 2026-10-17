@@ -339,48 +339,62 @@ It is 100% compatible not only with `/home/nguyentnt/MMVI/shop/python-shopee-sdk
 
 ---
 
-## 8. TypeScript Modular Architecture of `shopee-mock`
+### 8. TypeScript Modular Architecture of `shopee-mock` (Aligned with `shopee-sdk`)
 
-`shopee-mock` has been refactored from 3 monolithic JavaScript files (`index.js` [1,842 lines], `schema-engine.js` [1,082 lines], `console-ui.js` [620 lines]) into a clean **TypeScript + Express** architecture with separated static HTML templates (`public/`) and 24 focused TypeScript modules (`src/`):
+`shopee-mock` is structured with the exact same TypeScript architecture and naming conventions as `shopee-sdk` (`server.ts`, `managers/*.manager.ts` extending `BaseManager`, `schemas/`, `storage/`, `utils/`, `errors.ts`, `version.ts`):
 
 ```text
 shopee-mock/
-├── package.json                          # npm scripts: build, start, dev, test:sdk, test:python
-├── tsconfig.json                         # Strict TypeScript compiler configuration
-├── public/                               # Static HTML/CSS/JS Web UIs (extracted from backend code)
-│   ├── console.html                      # Shopee Open Platform Developer Console (/console)
-│   └── seller-centre.html                # Shopee Seller Centre UI (/)
+├── package.json                                  # npm scripts: build, start, dev, test:sdk, test:python
+├── tsconfig.json                                 # Strict TypeScript compiler configuration
+├── public/                                       # Static HTML/CSS/JS Web UIs
+│   ├── console.html                              # Shopee Open Platform Developer Console (/console)
+│   └── seller-centre.html                        # Shopee Seller Centre UI (/)
 └── src/
-    ├── index.ts                  (23L)   # HTTP server bootstrap & startup banner
-    ├── app.ts                    (20L)   # Express app factory (createApp)
-    ├── config/
-    │   └── env.ts                (51L)   # Typed environment config & helpers (rid, ts, parseListParam)
-    ├── store/
-    │   ├── types.ts             (194L)   # Domain interfaces (MockDatabase, Order, ProductItem, etc.)
-    │   ├── seed.ts              (173L)   # Default shop, products, orders, categories, delivery steps
-    │   └── database.ts           (99L)   # Stateful store (DB, loadState, saveState, resetState)
-    ├── middleware/
-    │   ├── signature.ts          (56L)   # HMAC-SHA256 signature verification & requireAuth middleware
-    │   └── request-logger.ts     (29L)   # /api/v2 request ring-buffer logger for /console
-    ├── services/
-    │   ├── schema-loader.service.ts (173L) # Loads & caches all 455 Shopee v2 JSON schemas
-    │   ├── pdf-label.service.ts  (89L)   # SPX Express A6 PDF shipping label generator (pdfkit)
-    │   └── odoo-webhook.service.ts (41L) # Odoo delivery webhook notification service
-    └── routes/
-        ├── index.ts              (46L)   # Central router mounting all domain routes
-        ├── auth.routes.ts       (171L)   # /auth, /api/v2/auth/token/get, /api/v2/auth/access_token/get
-        ├── public.routes.ts      (86L)   # /api/v2/public/*
-        ├── shop.routes.ts        (56L)   # /api/v2/shop/*
-        ├── product.routes.ts    (355L)   # /api/v2/product/* (CRUD, stock, price, boost, categories)
-        ├── order.routes.ts       (66L)   # /api/v2/order/*
-        ├── logistics.routes.ts  (300L)   # /api/v2/logistics/* (channels, ship_order, AWB PDF)
-        ├── payment-returns.routes.ts (114L) # /api/v2/payment/* & /api/v2/returns/*
-        ├── marketing.routes.ts  (316L)   # /api/v2/voucher/*, discount/*, bundle_deal/*, follow_prize/*, shop_category/*
-        ├── media.routes.ts       (97L)   # /api/v2/media_space/* & /api/v2/media/*
-        ├── demo.routes.ts       (225L)   # Seller Centre API (/api/demo/*), /track/:no, /webhook/push
-        ├── console.routes.ts    (112L)   # Developer Console API (/api/console/*)
-        └── schema-fallback.routes.ts (29L) # Universal 455-schema fallback & 404 handler
+    ├── index.ts                          (14L)   # Entrypoint & barrel exports
+    ├── server.ts                        (131L)   # ShopeeMockServer class (mirrors ShopeeSDK in shopee-sdk/src/sdk.ts)
+    ├── errors.ts                         (18L)   # ShopeeMockError & ShopeeMockApiError
+    ├── version.ts                         (1L)   # Version constant
+    ├── schemas/                                  # Domain TypeScript schemas (mirrors shopee-sdk/src/schemas/)
+    │   ├── index.ts                       (6L)
+    │   ├── config.ts                     (29L)   # ShopeeMockConfig & DEFAULT_CONFIG
+    │   ├── shop.ts                       (20L)   # ShopProfile & CategoryItem
+    │   ├── product.ts                    (66L)   # ProductItem, ProductPriceInfo, ProductStockInfoV2
+    │   ├── order.ts                     (100L)   # Order, OrderItem, RecipientAddress, DeliveryStep
+    │   ├── marketing.ts                 (100L)   # Voucher, Discount, BundleDeal, FollowPrize, ReturnRecord
+    │   └── database.ts                   (40L)   # MockDatabase state schema
+    ├── storage/                                  # Pluggable state storage (mirrors shopee-sdk/src/storage/)
+    │   ├── index.ts                       (3L)
+    │   ├── state-storage.interface.ts     (9L)   # StateStorage interface
+    │   ├── file-state-storage.ts         (81L)   # FileStateStorage implementation
+    │   └── seed.ts                      (277L)   # Seed database & DELIVERY_STEPS
+    ├── utils/                                    # Pure utilities (mirrors shopee-sdk/src/utils/)
+    │   ├── index.ts                       (6L)
+    │   ├── helpers.ts                    (17L)   # rid(), ts(), nowStr(), parseListParam()
+    │   ├── signature.ts                  (60L)   # HMAC-SHA256 computeHmacSignature & verifySignature
+    │   ├── request-logger.ts             (46L)   # RequestLogger ring-buffer middleware
+    │   ├── schema-registry.ts           (171L)   # SchemaRegistry loading all 455 Shopee v2 JSON schemas
+    │   ├── pdf-label.ts                 (145L)   # SPX Express A6 PDF shipping label generator
+    │   └── odoo-webhook.ts               (44L)   # Odoo delivery webhook notifier
+    └── managers/                                 # Class-based managers extending BaseManager (mirrors shopee-sdk/src/managers/)
+        ├── index.ts                      (19L)
+        ├── base.manager.ts               (21L)   # Abstract BaseManager class
+        ├── auth.manager.ts              (112L)   # AuthManager (/auth, /api/v2/auth/*)
+        ├── public.manager.ts             (89L)   # PublicManager (/api/v2/public/*)
+        ├── shop.manager.ts               (68L)   # ShopManager (/api/v2/shop/*)
+        ├── product.manager.ts           (259L)   # ProductManager (/api/v2/product/*)
+        ├── order.manager.ts              (90L)   # OrderManager (/api/v2/order/*)
+        ├── logistics.manager.ts         (293L)   # LogisticsManager (/api/v2/logistics/*)
+        ├── payment.manager.ts           (100L)   # PaymentManager (/api/v2/payment/*)
+        ├── returns.manager.ts            (58L)   # ReturnsManager (/api/v2/returns/*)
+        ├── voucher.manager.ts           (100L)   # VoucherManager (/api/v2/voucher/*)
+        ├── discount.manager.ts           (90L)   # DiscountManager (/api/v2/discount/*)
+        ├── bundle-deal.manager.ts        (94L)   # BundleDealManager (/api/v2/bundle_deal/*)
+        ├── follow-prize.manager.ts       (96L)   # FollowPrizeManager (/api/v2/follow_prize/*)
+        ├── shop-category.manager.ts      (79L)   # ShopCategoryManager (/api/v2/shop_category/*)
+        ├── media.manager.ts              (47L)   # MediaManager (/api/v2/media/*)
+        ├── media-space.manager.ts        (93L)   # MediaSpaceManager (/api/v2/media_space/*)
+        ├── demo.manager.ts              (309L)   # DemoManager (/, /api/demo/*, /track/:tracking)
+        ├── console.manager.ts           (122L)   # ConsoleManager (/console, /api/console/*)
+        └── schema-fallback.manager.ts    (41L)   # SchemaFallbackManager (455-schema fallback & 404)
 ```
-
-
-
