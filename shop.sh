@@ -47,9 +47,13 @@ start_project() {
   fi
 
   # Clean up any orphan shopee-mock process on the same port
+  pkill -f "$MOCK_DIR/dist/index.js" 2>/dev/null || true
   pkill -f "$MOCK_DIR/index.js" 2>/dev/null || true
 
-  echo "🚀 Starting Shopee Open Platform Mock Server + Console UI on port $PORT..."
+  echo "🔨 Compiling TypeScript in shopee-mock..."
+  (cd "$MOCK_DIR" && npm run build --silent)
+
+  echo "🚀 Starting Shopee Open Platform Mock Server (TypeScript v5.0) + Console UI on port $PORT..."
   (
     cd "$MOCK_DIR"
     nohup env \
@@ -57,7 +61,7 @@ start_project() {
       PARTNER_ID="$PARTNER_ID" \
       PARTNER_KEY="$PARTNER_KEY" \
       STRICT_SIG="$STRICT_SIG" \
-      node "$MOCK_DIR/index.js" > "$LOG_FILE" 2>&1 &
+      node "$MOCK_DIR/dist/index.js" > "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
   )
 
@@ -85,6 +89,9 @@ stop_project() {
   fi
   rm -f "$PID_FILE"
 
+  if pkill -f "$MOCK_DIR/dist/index.js" 2>/dev/null; then
+    stopped=1
+  fi
   if pkill -f "$MOCK_DIR/index.js" 2>/dev/null; then
     stopped=1
   fi

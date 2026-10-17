@@ -1,6 +1,7 @@
 # Dependencies & Build Artifacts
 node_modules/
 shopee-sdk/lib/
+shopee-mock/dist/
 coverage/
 
 # Python

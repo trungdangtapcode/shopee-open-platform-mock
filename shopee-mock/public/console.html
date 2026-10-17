@@ -1,210 +1,4 @@
-/**
- * Shopee Open Platform Developer Console UI (/console)
- *
- * Provides a full browser-based Developer Console modeled after open.shopee.com:
- * 1. App Credentials & OAuth 2.0 Token Generator (authorize, exchange code, refresh token)
- * 2. API Test Tool & Schema Explorer for all 455 Shopee v2 endpoints (with live HMAC-SHA256 signing,
- *    auto-populated sample payloads, inline PDF airway bill viewer, Python SDK & cURL code generator)
- * 3. Built-in Python SDK Test Suite Runner (executes python-shopee-sdk/test_app.py from the browser)
- * 4. Live API Request Log Inspector
- */
-
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
-const { execFile } = require('child_process');
-
-function stripHtml(html) {
-  if (!html) return '';
-  return String(html).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function buildSampleRequestFromParams(params) {
-  const obj = {};
-  for (const p of (params || [])) {
-    if (['partner_id', 'timestamp', 'access_token', 'shop_id', 'sign', 'merchant_id'].includes(p.name)) {
-      continue;
-    }
-    const t = (p.type || '').toLowerCase();
-    if (t.includes('[]')) {
-      if (p.children && p.children.length) {
-        obj[p.name] = [buildSampleRequestFromParams(p.children)];
-      } else if (t.includes('int') || t.includes('number')) {
-        obj[p.name] = [Number(p.sample) || 10001];
-      } else {
-        obj[p.name] = [p.sample || 'SPX20260521001'];
-      }
-    } else if (t === 'object' || (p.children && p.children.length)) {
-      obj[p.name] = buildSampleRequestFromParams(p.children);
-    } else if (t.includes('int') || t.includes('float') || t.includes('number') || t === 'timestamp') {
-      obj[p.name] = p.sample !== undefined && p.sample !== '' ? Number(p.sample) : 1;
-    } else if (t === 'boolean') {
-      obj[p.name] = p.sample === 'true' || p.sample === true;
-    } else {
-      obj[p.name] = p.sample !== undefined ? String(p.sample) : '';
-    }
-  }
-  return obj;
-}
-
-function loadFullEndpointCatalog(schemasDir) {
-  const catalog = [];
-  if (!schemasDir || !fs.existsSync(schemasDir)) return catalog;
-
-  const files = fs.readdirSync(schemasDir).filter(f => f.endsWith('.json')).sort();
-  for (const file of files) {
-    try {
-      const raw = JSON.parse(fs.readFileSync(path.join(schemasDir, file), 'utf8'));
-      if (!raw.path || !raw.api_name) continue;
-      const parts = raw.api_name.split('.');
-      const moduleName = parts[1] || 'other';
-      const method = raw.method === 1 ? 'POST' : 'GET';
-      const reqParams = (raw.params && raw.params.request_params) || [];
-      const sampleReq = buildSampleRequestFromParams(reqParams);
-      const desc = stripHtml(raw.define && raw.define.content);
-
-      catalog.push({
-        api_name: raw.api_name,
-        module: moduleName,
-        method,
-        path: raw.path,
-        api_type: raw.api_type || 'Shop',
-        description: desc || `${method} ${raw.path}`,
-        sample_request: sampleReq,
-        param_docs: reqParams.slice(0, 25).map(p => ({
-          name: p.name,
-          type: p.type || 'string',
-          required: p.required === 'True' || p.required === true,
-          description: stripHtml(p.description).slice(0, 140),
-        })),
-      });
-    } catch (_) {}
-  }
-  return catalog;
-}
-
-function registerConsoleRoutes(app, { DB, PARTNER_ID, PARTNER_KEY, schemasDir }) {
-  DB.apiLogs = DB.apiLogs || [];
-
-  const resolvedSchemasDir = schemasDir || path.resolve(__dirname, '../shopee-sdk/schemas');
-  const catalog = loadFullEndpointCatalog(resolvedSchemasDir);
-
-  // Middleware to record /api/v2/* traffic for the Live Request Inspector
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api/v2/')) {
-      const start = Date.now();
-      const origEnd = res.end;
-      res.end = function (...args) {
-        DB.apiLogs.unshift({
-          id: 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-          time: new Date().toISOString().replace('T', ' ').substring(0, 19),
-          method: req.method,
-          path: req.path,
-          status: res.statusCode,
-          duration_ms: Date.now() - start,
-          query: req.query,
-          body: req.body && Object.keys(req.body).length ? req.body : undefined,
-        });
-        if (DB.apiLogs.length > 60) DB.apiLogs.length = 60;
-        return origEnd.apply(this, args);
-      };
-    }
-    next();
-  });
-
-  // Return console metadata & endpoint catalog
-  app.get('/api/console/meta', (req, res) => {
-    res.json({
-      partner_id: Number(PARTNER_ID),
-      partner_key: PARTNER_KEY,
-      shop_id: DB.shop.shop_id,
-      shop_name: DB.shop.shop_name,
-      region: DB.shop.region,
-      strict_sig: process.env.STRICT_SIG === 'true',
-      counts: {
-        endpoints: catalog.length,
-        products: DB.products.length,
-        orders: DB.orders.length,
-        vouchers: (DB.vouchers || []).length,
-        discounts: (DB.discounts || []).length,
-      },
-      first_order_sn: DB.orders[0] ? DB.orders[0].order_sn : 'SPX20260521001',
-      first_item_id: DB.products[0] ? DB.products[0].item_id : 10001,
-      logs: DB.apiLogs.slice(0, 40),
-      catalog,
-    });
-  });
-
-  // Compute HMAC-SHA256 signature for any API request
-  app.post('/api/console/sign', (req, res) => {
-    const {
-      partner_id = PARTNER_ID,
-      partner_key = PARTNER_KEY,
-      api_path = '/api/v2/shop/get_shop_info',
-      access_token = '',
-      shop_id = '',
-      auth = true,
-      timestamp: customTs,
-    } = req.body || {};
-
-    const timestamp = customTs ? Number(customTs) : Math.floor(Date.now() / 1000);
-    const useAuth = Boolean(auth && access_token);
-    const base_string = useAuth
-      ? `${partner_id}${api_path}${timestamp}${access_token}${shop_id}`
-      : `${partner_id}${api_path}${timestamp}`;
-    const sign = crypto.createHmac('sha256', String(partner_key)).update(base_string).digest('hex');
-
-    res.json({
-      partner_id: Number(partner_id),
-      api_path,
-      timestamp,
-      base_string,
-      sign,
-      auth: useAuth,
-    });
-  });
-
-  // Execute the Python SDK End-to-End Test Suite against this running server
-  app.post('/api/console/run-python-tests', (req, res) => {
-    const host = req.get('host') || 'localhost:3000';
-    const baseUrl = `${req.protocol}://${host}/api/v2`;
-    const authUrl = `${req.protocol}://${host}/auth`;
-    const scriptPath = path.resolve(__dirname, '../python-shopee-sdk/test_app.py');
-
-    execFile(
-      'python3',
-      [scriptPath],
-      {
-        env: {
-          ...process.env,
-          SHOPEE_PARTNER_ID: String(PARTNER_ID),
-          SHOPEE_PARTNER_KEY: String(PARTNER_KEY),
-          SHOPEE_SHOP_ID: String(DB.shop.shop_id),
-          SHOPEE_BASE_URL: baseUrl,
-          SHOPEE_AUTH_URL: authUrl,
-        },
-        timeout: 20000,
-      },
-      (err, stdout, stderr) => {
-        res.json({
-          success: !err,
-          exit_code: err ? err.code || 1 : 0,
-          stdout: stdout || '',
-          stderr: stderr || (err ? err.message : ''),
-        });
-      }
-    );
-  });
-
-  // Clear request logs
-  app.post('/api/console/clear-logs', (req, res) => {
-    DB.apiLogs = [];
-    res.json({ ok: true });
-  });
-
-  // Serve Shopee Open Platform Developer Console HTML UI
-  app.get('/console', (req, res) => {
-    res.send(`<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -226,7 +20,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .op-link-btn:hover{border-color:#EE4D2D;color:white}
 .op-token-pill{display:flex;align-items:center;gap:6px;background:#1e293b;padding:5px 10px;border-radius:6px;border:1px solid #334155;font-size:11px;color:#cbd5e1}
 .op-dot{width:8px;height:8px;border-radius:50%;background:#22c55e}
-
 .op-container{flex:1;display:flex;flex-direction:column;max-width:1600px;width:100%;margin:0 auto;padding:18px}
 .op-grid-4{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
 .op-stat{background:white;border:1px solid #e2e8f0;border-radius:8px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.03)}
@@ -234,7 +27,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .op-stat-val{font-size:22px;font-weight:700;color:#0f172a}
 .op-stat-val.orange{color:#EE4D2D}
 .op-stat-val.green{color:#16a34a}
-
 .op-card{background:white;border:1px solid #e2e8f0;border-radius:8px;padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,0.03)}
 .op-card-title{font-size:15px;font-weight:700;color:#0f172a;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
 .op-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:14px}
@@ -243,18 +35,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .op-field input,.op-field select,.op-field textarea{padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;font-family:inherit;background:white;color:#0f172a}
 .op-field input:focus,.op-field select:focus,.op-field textarea:focus{outline:none;border-color:#EE4D2D}
 .op-mono{font-family:'SFMono-Regular',Consolas,monospace !important}
-
 .op-btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
 .op-btn-primary{background:#EE4D2D;color:white}.op-btn-primary:hover{background:#d94426}
 .op-btn-dark{background:#0f172a;color:white}.op-btn-dark:hover{background:#1e293b}
 .op-btn-outline{background:white;color:#334155;border:1px solid #cbd5e1}.op-btn-outline:hover{border-color:#EE4D2D;color:#EE4D2D}
 .op-btn-green{background:#16a34a;color:white}.op-btn-green:hover{background:#15803d}
-
-/* API Explorer Layout */
 .op-explorer{display:grid;grid-template-columns:330px 1fr;gap:16px;min-height:660px}
 .op-ep-sidebar{background:white;border:1px solid #e2e8f0;border-radius:8px;display:flex;flex-direction:column;overflow:hidden;max-height:760px}
 .op-ep-filter{padding:12px;border-bottom:1px solid #e2e8f0;display:flex;flex-direction:column;gap:8px;background:#f8fafc}
-.op-ep-list{flex:1;overflow-y:auto;divide-y:1px solid #f1f5f9}
+.op-ep-list{flex:1;overflow-y:auto}
 .op-ep-item{padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;transition:background .1s;display:flex;flex-direction:column;gap:3px}
 .op-ep-item:hover{background:#fff5f3}
 .op-ep-item.active{background:#fff0ed;border-left:3px solid #EE4D2D}
@@ -264,16 +53,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .op-method.POST{background:#dcfce7;color:#15803d}
 .op-ep-name{font-size:12px;font-weight:600;color:#0f172a;word-break:break-all}
 .op-ep-path{font-size:11px;color:#64748b;font-family:monospace}
-
 .op-ep-main{display:flex;flex-direction:column;gap:14px}
 .op-code-box{background:#0f172a;color:#e2e8f0;border-radius:8px;padding:14px;font-family:'SFMono-Regular',Consolas,monospace;font-size:12px;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:420px;overflow-y:auto}
 .op-sign-banner{background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px 12px;font-size:11px;color:#475569;margin-bottom:12px}
 .op-sign-banner code{color:#EE4D2D;font-weight:600;word-break:break-all}
-
 .op-presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .op-preset-chip{background:#f1f5f9;border:1px solid #cbd5e1;color:#334155;padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s}
 .op-preset-chip:hover{background:#fff0ed;border-color:#EE4D2D;color:#EE4D2D}
-
 table.op-table{width:100%;border-collapse:collapse;font-size:12px}
 table.op-table th{text-align:left;padding:8px 10px;background:#f8fafc;border-bottom:1px solid #e2e8f0;color:#475569;font-size:11px}
 table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}
@@ -286,7 +72,7 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
     <div class="op-logo">S</div>
     <span>Shopee Open Platform Console</span>
   </a>
-  <span class="op-badge">v2.0 Sandbox &amp; 455-Schema Engine</span>
+  <span class="op-badge">TypeScript Modular v5.0 · 455 Schemas</span>
 
   <div class="op-nav">
     <button class="op-nav-btn active" onclick="showSection('explorer', this)">API Test Tool (455 APIs)</button>
@@ -305,7 +91,6 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
 </div>
 
 <div class="op-container">
-  <!-- Top Summary Metrics -->
   <div class="op-grid-4">
     <div class="op-stat">
       <div class="op-stat-label">Loaded v2 Schemas</div>
@@ -317,7 +102,7 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
     </div>
     <div class="op-stat">
       <div class="op-stat-label">Authorized Shop ID</div>
-      <div class="op-stat-val green" id="st-shop">222</div>
+      <div class="op-stat-val green" id="st-shop">123456</div>
     </div>
     <div class="op-stat">
       <div class="op-stat-label">Products / Orders</div>
@@ -349,7 +134,6 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
     </div>
 
     <div class="op-explorer">
-      <!-- Left Sidebar: Module & Search -->
       <div class="op-ep-sidebar">
         <div class="op-ep-filter">
           <input type="text" id="ep-search" placeholder="Search 455 APIs (e.g. add_item, order, flash_sale)..." oninput="renderEndpointList()" style="padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px">
@@ -360,7 +144,6 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
         <div class="op-ep-list" id="ep-list"></div>
       </div>
 
-      <!-- Right Main Panel: Request Builder & Response Viewer -->
       <div class="op-ep-main">
         <div class="op-card" style="margin-bottom:0">
           <div class="op-card-title">
@@ -392,7 +175,7 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
             </div>
             <div class="op-field">
               <label>Shop ID</label>
-              <input type="number" id="req-shop-id" class="op-mono" value="222" oninput="refreshSignaturePreview()">
+              <input type="number" id="req-shop-id" class="op-mono" value="123456" oninput="refreshSignaturePreview()">
             </div>
             <div class="op-field">
               <label>Access Token (<a href="javascript:void(0)" onclick="quickGetToken()" style="color:#EE4D2D">Get New Token</a>)</label>
@@ -422,7 +205,6 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
           </details>
         </div>
 
-        <!-- Response Card -->
         <div class="op-card" style="margin-bottom:0;flex:1">
           <div class="op-card-title">
             <span>API Response</span>
@@ -443,7 +225,7 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
       <div class="op-card-title">
         <span>OAuth 2.0 Store Authorization &amp; Token Generator</span>
         <div style="display:flex;gap:8px">
-          <a class="op-btn op-btn-outline" href="/auth?partner_id=1&redirect_uri=http://localhost:3000/console" target="_blank">🔗 Open Visual Store Authorize Page (/auth)</a>
+          <a class="op-btn op-btn-outline" href="/auth?partner_id=1&redirect_uri=/console" target="_blank">🔗 Open Visual Store Authorize Page (/auth)</a>
           <button class="op-btn op-btn-primary" onclick="quickGetToken()">⚡ Exchange Auth Code for Access Token</button>
           <button class="op-btn op-btn-dark" onclick="quickRefreshToken()">↻ Refresh Access Token</button>
         </div>
@@ -478,12 +260,12 @@ table.op-table td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-alig
     <div class="op-card">
       <div class="op-card-title">
         <span>Python Shopee v2 SDK — Live End-to-End Test Runner (<code>python-shopee-sdk/test_app.py</code>)</span>
-        <button class="op-btn op-btn-green" id="btn-run-py" onclick="runPythonTestSuite()">▶ Run All 8 Python SDK Test Suites Now</button>
+        <button class="op-btn op-btn-green" id="btn-run-py" onclick="runPythonTestSuite()">▶ Run All 8 Python SDK Test Suites (455 APIs) Now</button>
       </div>
       <p style="font-size:12px;color:#475569;margin-bottom:12px">
         Executes <code>/home/nguyentnt/MMVI/shop/python-shopee-sdk/test_app.py</code> directly against this server with strict HMAC-SHA256 verification and streams the output below:
       </p>
-      <pre class="op-code-box" id="py-output-box" style="min-height:380px">Click "▶ Run All 8 Python SDK Test Suites Now" to execute test_app.py...</pre>
+      <pre class="op-code-box" id="py-output-box" style="min-height:380px">Click "▶ Run All 8 Python SDK Test Suites (455 APIs) Now" to execute test_app.py...</pre>
     </div>
   </div>
 
@@ -520,8 +302,8 @@ let CATALOG = [];
 let CURRENT_EP = null;
 
 const PRESET_PAYLOADS = {
-  '/api/v2/auth/token/get': { code: 'MOCK_AUTH_CODE_2026', partner_id: 1, shop_id: 222 },
-  '/api/v2/auth/access_token/get': { refresh_token: 'MOCK_REFRESH_TOKEN', partner_id: 1, shop_id: 222 },
+  '/api/v2/auth/token/get': { code: 'MOCK_AUTH_CODE_2026', partner_id: 1, shop_id: 123456 },
+  '/api/v2/auth/access_token/get': { refresh_token: 'MOCK_REFRESH_TOKEN', partner_id: 1, shop_id: 123456 },
   '/api/v2/shop/get_shop_info': {},
   '/api/v2/shop/update_profile': { shop_name: 'Demo Shopee Store PH', description: 'Updated from Open Platform Console' },
   '/api/v2/product/get_item_list': { offset: 0, page_size: 20, item_status: 'NORMAL' },
@@ -582,7 +364,6 @@ async function loadMeta() {
   document.getElementById('req-partner-key').value = META.partner_key;
   document.getElementById('req-shop-id').value = META.shop_id;
 
-  // Populate modules dropdown
   const modSelect = document.getElementById('ep-module');
   if (modSelect.options.length <= 1) {
     const modCounts = {};
@@ -615,7 +396,7 @@ function renderEndpointList() {
 
   listEl.innerHTML = filtered.map(ep => {
     const isAct = CURRENT_EP && CURRENT_EP.path === ep.path;
-    return '<div class="op-ep-item ' + (isAct ? 'active' : '') + '" onclick="selectByPath(\\'' + ep.path + '\\')">' +
+    return '<div class="op-ep-item ' + (isAct ? 'active' : '') + '" onclick="selectByPath(\'' + ep.path + '\')">' +
       '<div class="op-ep-top">' +
         '<span class="op-method ' + ep.method + '">' + ep.method + '</span>' +
         '<span class="op-ep-name">' + ep.api_name + '</span>' +
@@ -629,7 +410,7 @@ function selectByPath(apiPath) {
   let ep = CATALOG.find(e => e.path === apiPath);
   if (!ep) {
     ep = {
-      api_name: 'v2.' + apiPath.replace('/api/v2/', '').replace(/\\//g, '.'),
+      api_name: 'v2.' + apiPath.replace('/api/v2/', '').replace(/\//g, '.'),
       module: apiPath.split('/')[3] || 'auth',
       method: apiPath.includes('/auth/') ? 'POST' : 'GET',
       path: apiPath,
@@ -654,7 +435,6 @@ function selectByPath(apiPath) {
   const sample = PRESET_PAYLOADS[ep.path] !== undefined ? PRESET_PAYLOADS[ep.path] : (ep.sample_request || {});
   document.getElementById('req-payload').value = JSON.stringify(sample, null, 2);
 
-  // Render param table
   const tbody = document.getElementById('cur-param-table');
   if (ep.param_docs && ep.param_docs.length) {
     tbody.innerHTML = ep.param_docs.map(p =>
@@ -666,9 +446,6 @@ function selectByPath(apiPath) {
     tbody.innerHTML = '<tr><td colspan="4" style="color:#94a3b8">No additional parameters required.</td></tr>';
   }
 
-  // Render Python SDK snippet
-  const shortPath = ep.path.replace(/^\\/api\\/v2/, '');
-  const isPublic = ep.api_type === 'Public' || ep.path.includes('/auth/') || ep.path.includes('/public/');
   const pyCode = [
     'from shopee_client import ShopeeClient',
     '',
@@ -680,14 +457,12 @@ function selectByPath(apiPath) {
     ')',
     'client.authenticate_with_code("MOCK_AUTH_CODE_2026")',
     '',
-    'response = client.request(',
-    '    "' + ep.method + '",',
-    '    "' + shortPath + '",',
-    '    ' + (ep.method === 'GET' ? 'params=' : 'body=') + JSON.stringify(sample) + ',',
-    '    auth=' + (isPublic ? 'False' : 'True') + ',',
+    'response = client.call_api(',
+    '    "' + ep.api_name + '",',
+    '    ' + JSON.stringify(sample) + ',',
     ')',
     'print(response)'
-  ].join('\\n');
+  ].join('\n');
   document.getElementById('cur-python-snippet').textContent = pyCode;
 
   refreshSignaturePreview();
@@ -789,7 +564,7 @@ async function executeApiCall() {
 async function quickGetToken() {
   const partner_id = Number(document.getElementById('req-partner-id').value || 1);
   const partner_key = document.getElementById('req-partner-key').value || '1';
-  const shop_id = Number(document.getElementById('req-shop-id').value || 222);
+  const shop_id = Number(document.getElementById('req-shop-id').value || 123456);
   const code = document.getElementById('oauth-code').value || 'MOCK_AUTH_CODE_2026';
 
   const sigRes = await fetch('/api/console/sign', {
@@ -818,7 +593,7 @@ async function quickGetToken() {
 async function quickRefreshToken() {
   const partner_id = Number(document.getElementById('req-partner-id').value || 1);
   const partner_key = document.getElementById('req-partner-key').value || '1';
-  const shop_id = Number(document.getElementById('req-shop-id').value || 222);
+  const shop_id = Number(document.getElementById('req-shop-id').value || 123456);
   const refresh_token = document.getElementById('oauth-refresh-token').value || 'MOCK_REFRESH_TOKEN';
 
   const sigRes = await fetch('/api/console/sign', {
@@ -849,18 +624,18 @@ async function runPythonTestSuite() {
   const box = document.getElementById('py-output-box');
   btn.disabled = true;
   btn.textContent = '⏳ Running Python SDK Tests...';
-  box.textContent = 'Starting python3 test_app.py against ' + window.location.origin + '/api/v2 ...\\n';
+  box.textContent = 'Starting python3 test_app.py against ' + window.location.origin + '/api/v2 ...\n';
 
   try {
     const res = await fetch('/api/console/run-python-tests', { method: 'POST' });
     const data = await res.json();
-    box.textContent = (data.stdout || '') + (data.stderr ? '\\n' + data.stderr : '');
+    box.textContent = (data.stdout || '') + (data.stderr ? '\n' + data.stderr : '');
     loadMeta();
   } catch (err) {
     box.textContent = 'Failed to run Python tests: ' + err.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = '▶ Run All 8 Python SDK Test Suites Now';
+    btn.textContent = '▶ Run All 8 Python SDK Test Suites (455 APIs) Now';
   }
 }
 
@@ -892,10 +667,4 @@ async function clearLogs() {
 loadMeta();
 </script>
 </body>
-</html>`);
-  });
-}
-
-module.exports = {
-  registerConsoleRoutes,
-};
+</html>

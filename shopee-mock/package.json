@@ -1,13 +1,14 @@
 {
   "name": "shopee-mock-api",
-  "version": "2.0.0",
-  "description": "Shopee Open Platform API mock server for Odoo integration demo",
-  "main": "index.js",
+  "version": "5.0.0",
+  "description": "Modular TypeScript Shopee Open Platform v2 Mock Server & Developer Console",
+  "main": "dist/index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
-    "test:sdk": "bash -c 'PORT=3099 STRICT_SIG=true PARTNER_ID=123456 PARTNER_KEY=test_key_123 node index.js & PID=$!; trap \"kill $PID 2>/dev/null; rm -f shopee_mock_state.json\" EXIT; sleep 1; cd ../shopee-sdk && SHOPEE_SANDBOX_BASE_URL=http://127.0.0.1:3099/api/v2 SHOPEE_SANDBOX_PARTNER_ID=123456 SHOPEE_SANDBOX_PARTNER_KEY=test_key_123 SHOPEE_SANDBOX_SHOP_ID=123456 SHOPEE_SANDBOX_ACCESS_TOKEN=mock_token_123 SHOPEE_SANDBOX_REFRESH_TOKEN=mock_refresh_123 NODE_OPTIONS=--experimental-vm-modules npx jest src/__tests__/integration/ --no-coverage'",
-    "test:python": "bash -c 'PORT=3099 STRICT_SIG=true node index.js & PID=$!; trap \"kill $PID 2>/dev/null; rm -f shopee_mock_state.json\" EXIT; sleep 1; SHOPEE_BASE_URL=http://127.0.0.1:3099/api/v2 SHOPEE_AUTH_URL=http://127.0.0.1:3099/auth python3 ../python-shopee-sdk/test_app.py'"
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test:sdk": "bash -c 'npm run build && PORT=3098 STRICT_SIG=true PARTNER_ID=123456 PARTNER_KEY=test_key_123 node dist/index.js & PID=$!; trap \"kill $PID 2>/dev/null; rm -f shopee_mock_state.json\" EXIT; sleep 1; cd ../shopee-sdk && SHOPEE_SANDBOX_BASE_URL=http://127.0.0.1:3098/api/v2 SHOPEE_SANDBOX_PARTNER_ID=123456 SHOPEE_SANDBOX_PARTNER_KEY=test_key_123 SHOPEE_SANDBOX_SHOP_ID=123456 SHOPEE_SANDBOX_ACCESS_TOKEN=mock_token_123 SHOPEE_SANDBOX_REFRESH_TOKEN=mock_refresh_123 NODE_OPTIONS=--experimental-vm-modules npx jest src/__tests__/integration/ --no-coverage'",
+    "test:python": "bash -c 'npm run build && PORT=3098 STRICT_SIG=true node dist/index.js & PID=$!; trap \"kill $PID 2>/dev/null; rm -f shopee_mock_state.json\" EXIT; sleep 1; SHOPEE_BASE_URL=http://127.0.0.1:3098/api/v2 SHOPEE_AUTH_URL=http://127.0.0.1:3098/auth python3 ../python-shopee-sdk/test_app.py'"
   },
   "engines": {
     "node": ">=18"
@@ -15,5 +16,10 @@
   "dependencies": {
     "express": "^4.18.2",
     "pdfkit": "^0.15.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
   }
 }

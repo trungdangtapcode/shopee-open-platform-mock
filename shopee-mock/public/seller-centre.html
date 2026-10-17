@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shopee Seller Centre</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f5f5f5;color:#222;font-size:13px;min-height:100vh}
+.sc-topbar{background:#EE4D2D;display:flex;align-items:center;height:48px;padding:0 16px;gap:12px;position:sticky;top:0;z-index:100}
+.sc-topbar-logo{display:flex;align-items:center;gap:8px;color:white;font-size:18px;font-weight:700;text-decoration:none;padding-right:16px;border-right:1px solid rgba(255,255,255,0.3)}
+.sc-topbar-logo-s{width:28px;height:28px;background:white;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#EE4D2D;font-size:16px;font-weight:900}
+.sc-topbar-title{color:white;font-size:13px;opacity:.85}
+.sc-topbar-shop{margin-left:auto;display:flex;align-items:center;gap:6px;color:white;font-size:12px;opacity:.9}
+.sc-online-dot{width:7px;height:7px;border-radius:50%;background:#4ade80;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.sc-layout{display:flex;min-height:calc(100vh - 48px)}
+.sc-sidebar{width:210px;background:white;border-right:1px solid #e8e8e8;padding:8px 0;flex-shrink:0}
+.sc-sidebar-section{padding:16px 16px 4px;font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.6px}
+.sc-sidebar-item{display:flex;align-items:center;gap:8px;padding:8px 16px;cursor:pointer;color:#444;font-size:13px;transition:background .1s;border-left:3px solid transparent}
+.sc-sidebar-item:hover{background:#fff5f3;color:#EE4D2D}
+.sc-sidebar-item.active{background:#fff5f3;color:#EE4D2D;font-weight:600;border-left-color:#EE4D2D}
+.sc-main{flex:1;padding:16px;overflow:auto}
+.sc-page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.sc-page-title{font-size:18px;font-weight:600;color:#222}
+.sc-breadcrumb{font-size:12px;color:#888;margin-bottom:4px}
+.sc-breadcrumb span{color:#EE4D2D}
+.sc-tabs{display:flex;border-bottom:2px solid #e8e8e8;margin-bottom:14px;gap:0}
+.sc-tab{padding:10px 18px;font-size:13px;cursor:pointer;color:#555;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:color .15s}
+.sc-tab:hover{color:#EE4D2D}
+.sc-tab.active{color:#EE4D2D;font-weight:600;border-bottom-color:#EE4D2D}
+.sc-tab .sc-tab-count{display:inline-block;background:#EE4D2D;color:white;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:5px}
+.sc-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.sc-search{display:flex;align-items:center;border:1px solid #ddd;border-radius:4px;overflow:hidden;background:white}
+.sc-search input{border:none;outline:none;padding:6px 10px;font-size:12px;width:220px}
+.sc-search-btn{background:#EE4D2D;color:white;border:none;padding:6px 12px;cursor:pointer;font-size:12px}
+.sc-btn{display:inline-block;padding:6px 14px;border-radius:4px;font-size:12px;cursor:pointer;font-weight:500;border:none;transition:all .15s;white-space:nowrap}
+.sc-btn-primary{background:#EE4D2D;color:white}.sc-btn-primary:hover{background:#d94426}
+.sc-btn-outline{background:white;color:#555;border:1px solid #ddd}.sc-btn-outline:hover{border-color:#EE4D2D;color:#EE4D2D}
+.sc-btn-sm{padding:4px 10px;font-size:11px}
+.sc-table-wrap{background:white;border-radius:4px;border:1px solid #e8e8e8;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 12px;font-size:11px;font-weight:600;color:#666;text-align:left;background:#fafafa;border-bottom:1px solid #e8e8e8;white-space:nowrap}
+td{padding:12px 12px;border-bottom:1px solid #f2f2f2;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fffaf9}
+.sc-order-id{font-size:12px;font-weight:600;color:#EE4D2D;font-family:monospace}
+.sc-order-date{font-size:11px;color:#999;margin-top:2px}
+.sc-product-name{font-size:12px;font-weight:500;color:#222;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc-product-meta{font-size:11px;color:#999;margin-top:2px}
+.sc-more{background:#f0f0f0;color:#666;font-size:10px;padding:1px 5px;border-radius:3px}
+.sc-buyer{font-size:12px;font-weight:500}
+.sc-buyer-city{font-size:11px;color:#999;margin-top:1px}
+.sc-amount{font-size:13px;font-weight:600;color:#222;white-space:nowrap}
+.sc-track-link{color:#EE4D2D;text-decoration:none;font-family:monospace;font-size:11px}.sc-track-link:hover{text-decoration:underline}
+.sc-no-tracking{color:#bbb}
+.sc-actions{white-space:nowrap}
+.sc-actions .sc-btn{display:block;width:100%;margin-bottom:4px;text-align:center}
+.sc-completed-tag{font-size:11px;color:#16a34a;font-weight:600}
+.sc-status{display:inline-block;padding:3px 8px;border-radius:3px;font-size:11px;font-weight:600;white-space:nowrap}
+.sc-status.toship{background:#FFF3E0;color:#E65100}
+.sc-status.shipping{background:#E3F2FD;color:#1565C0}
+.sc-status.completed{background:#E8F5E9;color:#2E7D32}
+.sc-status.default{background:#f5f5f5;color:#666}
+.sc-prod-wrap{display:flex;align-items:center;gap:8px}
+.sc-prod-thumb{width:40px;height:40px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#fff0ed;border:1px solid #ffc4b3}
+.sc-prod-name{font-size:12px;font-weight:500;color:#222;max-width:260px;line-height:1.4}
+.sc-prod-ids{font-size:10px;color:#999;margin-top:2px}
+.sc-price{font-size:13px;font-weight:600;white-space:nowrap}
+.sc-stock{font-size:13px;font-weight:500;color:#222}
+.sc-stock.low{color:#E65100;font-weight:700}
+.sc-sold-out{font-size:12px;color:#EE4D2D;font-weight:600}
+.sc-synced-tag{display:inline-block;background:#E3F2FD;color:#1565C0;font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;margin-right:4px}
+.sc-sync-time{font-size:10px;color:#999}
+.sc-info-box{background:#fff8e6;border:1px solid #ffd369;border-radius:4px;padding:10px 14px;font-size:12px;color:#7a5c00;margin-bottom:12px;display:flex;align-items:flex-start;gap:8px}
+.sc-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.sc-card{background:white;border:1px solid #e8e8e8;border-radius:4px;padding:12px 14px}
+.sc-card-label{font-size:11px;color:#888;margin-bottom:4px}
+.sc-card-value{font-size:22px;font-weight:600;color:#222}
+.sc-card-value.orange{color:#EE4D2D}
+.sc-card-value.green{color:#16a34a}
+.sc-new-order{background:#fafafa;border:1px solid #e8e8e8;border-radius:4px;padding:14px;margin-bottom:12px;display:none}
+.sc-new-order h3{font-size:13px;font-weight:600;margin-bottom:10px;color:#222}
+.sc-form-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.sc-form-group{display:flex;flex-direction:column;gap:3px}
+.sc-form-group label{font-size:11px;color:#666}
+.sc-form-group input,.sc-form-group select{padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:12px;min-width:120px}
+.sc-toast{position:fixed;bottom:24px;right:24px;background:#333;color:white;padding:10px 18px;border-radius:6px;font-size:12px;font-weight:500;opacity:0;transition:opacity .25s;z-index:9999;max-width:320px}
+.sc-toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<div class="sc-topbar">
+  <a class="sc-topbar-logo" href="/">
+    <div class="sc-topbar-logo-s">S</div>
+    <span>Seller Centre</span>
+  </a>
+  <span class="sc-topbar-title">TypeScript Modular v5.0</span>
+  <a href="/console" style="margin-left:12px;background:rgba(0,0,0,0.22);color:white;text-decoration:none;padding:5px 12px;border-radius:5px;font-size:12px;font-weight:600;border:1px solid rgba(255,255,255,0.35)">⚡ Open Platform Console (455 APIs) →</a>
+  <div class="sc-topbar-shop">
+    <span class="sc-online-dot"></span>
+    <span id="top-shop-label">Demo Shopee Store PH</span>
+  </div>
+</div>
+
+<div class="sc-layout">
+  <div class="sc-sidebar">
+    <div class="sc-sidebar-section">Order</div>
+    <div class="sc-sidebar-item active" id="nav-orders" onclick="switchTab('orders')">My Orders</div>
+    <div class="sc-sidebar-section">Product</div>
+    <div class="sc-sidebar-item" id="nav-products" onclick="switchTab('products')">My Products</div>
+    <div class="sc-sidebar-section">Open Platform &amp; Dev</div>
+    <div class="sc-sidebar-item" onclick="window.location.href='/console'" style="color:#EE4D2D;font-weight:600">⚡ Open Platform Console</div>
+    <div class="sc-sidebar-item" onclick="window.open('/auth?partner_id=1','_blank')">🔑 OAuth Authorize Page</div>
+    <div class="sc-sidebar-item" onclick="window.open('/api/debug','_blank')">Debug State JSON</div>
+    <div class="sc-sidebar-item" onclick="resetState()" style="color:#c00">Reset All State</div>
+  </div>
+
+  <div class="sc-main">
+    <!-- ORDERS TAB -->
+    <div id="tab-orders">
+      <div class="sc-breadcrumb">Home &gt; <span>My Orders</span></div>
+      <div class="sc-page-header"><div class="sc-page-title">My Orders</div></div>
+
+      <div class="sc-summary">
+        <div class="sc-card"><div class="sc-card-label">Total Orders</div><div class="sc-card-value orange" id="sum-total-orders">0</div></div>
+        <div class="sc-card"><div class="sc-card-label">To Ship</div><div class="sc-card-value orange" id="sum-toship">0</div></div>
+        <div class="sc-card"><div class="sc-card-label">Shipping</div><div class="sc-card-value" id="sum-shipping">0</div></div>
+        <div class="sc-card"><div class="sc-card-label">Completed</div><div class="sc-card-value green" id="sum-completed">0</div></div>
+      </div>
+
+      <div class="sc-tabs" id="order-tabs">
+        <div class="sc-tab active" onclick="filterOrders('all', this)">All</div>
+        <div class="sc-tab" onclick="filterOrders('toship', this)">To Ship</div>
+        <div class="sc-tab" onclick="filterOrders('shipping', this)">Shipping</div>
+        <div class="sc-tab" onclick="filterOrders('completed', this)">Completed</div>
+      </div>
+
+      <div class="sc-toolbar">
+        <div class="sc-search">
+          <input type="text" placeholder="Search Order ID, Buyer, Product..." id="order-search-input" oninput="renderOrders()">
+          <button class="sc-search-btn" onclick="renderOrders()">Search</button>
+        </div>
+        <button class="sc-btn sc-btn-primary" onclick="toggleNewOrderForm()">+ New Demo Order</button>
+        <button class="sc-btn sc-btn-outline" onclick="loadState()">↻ Refresh</button>
+      </div>
+
+      <div class="sc-new-order" id="new-order-form">
+        <h3>Create New Demo Order</h3>
+        <div class="sc-form-row">
+          <div class="sc-form-group"><label>Customer Name</label><input id="nof-name" type="text" value="Pedro Santos"></div>
+          <div class="sc-form-group"><label>Phone</label><input id="nof-phone" type="text" value="+639171112233"></div>
+          <div class="sc-form-group"><label>City</label><input id="nof-city" type="text" value="Manila"></div>
+          <div class="sc-form-group"><label>Carrier</label>
+            <select id="nof-carrier"><option>SPX Express</option><option>J&amp;T Express</option></select>
+          </div>
+          <div class="sc-form-group"><label>Product</label>
+            <select id="nof-product" style="min-width:220px" onchange="syncOrderPrice()"></select>
+          </div>
+          <div class="sc-form-group"><label>Qty</label><input id="nof-qty" type="number" value="1" min="1" style="width:60px"></div>
+          <div class="sc-form-group"><label>Price (PHP)</label><input id="nof-price" type="number" value="100" min="1" style="width:90px"></div>
+          <div class="sc-form-group">
+            <div style="display:flex;gap:6px">
+              <button class="sc-btn sc-btn-primary" onclick="submitNewOrder()">Create</button>
+              <button class="sc-btn sc-btn-outline" onclick="document.getElementById('new-order-form').style.display='none'">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sc-table-wrap">
+        <table>
+          <thead><tr>
+            <th>Order ID / Date</th>
+            <th>Product(s)</th>
+            <th>Buyer</th>
+            <th>Total Payment</th>
+            <th>Status</th>
+            <th>Tracking No.</th>
+            <th>Actions</th>
+          </tr></thead>
+          <tbody id="orders-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PRODUCTS TAB -->
+    <div id="tab-products" style="display:none">
+      <div class="sc-breadcrumb">Home &gt; <span>My Products</span></div>
+      <div class="sc-page-header"><div class="sc-page-title">My Products</div></div>
+
+      <div class="sc-summary">
+        <div class="sc-card"><div class="sc-card-label">Total Store Products</div><div class="sc-card-value orange" id="sum-prod-total">0</div></div>
+        <div class="sc-card"><div class="sc-card-label">Synced via API / SDK</div><div class="sc-card-value green" id="sum-prod-synced">0</div></div>
+      </div>
+
+      <div class="sc-info-box">
+        ℹ️ <span>Showing all store products (including items created or updated via Python SDK, TypeScript SDK, Open Platform Console, or Odoo).</span>
+      </div>
+
+      <div class="sc-table-wrap">
+        <table>
+          <thead><tr>
+            <th>Product(s)</th>
+            <th>Price</th>
+            <th>Stock</th>
+            <th>Source / Sync</th>
+          </tr></thead>
+          <tbody id="products-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sc-toast" id="sc-toast"></div>
+
+<script>
+let STATE = null;
+let ORDER_FILTER = 'all';
+
+function toast(msg, dur = 3000) {
+  const el = document.getElementById('sc-toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), dur);
+}
+
+function switchTab(tab) {
+  document.getElementById('tab-orders').style.display = tab === 'orders' ? 'block' : 'none';
+  document.getElementById('tab-products').style.display = tab === 'products' ? 'block' : 'none';
+  document.getElementById('nav-orders').classList.toggle('active', tab === 'orders');
+  document.getElementById('nav-products').classList.toggle('active', tab === 'products');
+}
+
+function filterOrders(filter, el) {
+  ORDER_FILTER = filter;
+  document.querySelectorAll('#order-tabs .sc-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderOrders();
+}
+
+async function loadState() {
+  const res = await fetch('/api/demo/state');
+  STATE = await res.json();
+  document.getElementById('top-shop-label').textContent =
+    STATE.shop.shop_name + ' · ID: ' + STATE.shop.shop_id;
+
+  const sel = document.getElementById('nof-product');
+  sel.innerHTML = STATE.products.map(p =>
+    '<option value="' + p.item_id + '" data-sku="' + p.sku + '" data-name="' + p.name.replace(/"/g, '&quot;') + '" data-price="' + p.price + '">' +
+    p.sku + ' — ' + p.name + '</option>'
+  ).join('');
+  syncOrderPrice();
+
+  renderOrders();
+  renderProducts();
+}
+
+function syncOrderPrice() {
+  const sel = document.getElementById('nof-product');
+  if (sel && sel.selectedOptions[0]) {
+    document.getElementById('nof-price').value = sel.selectedOptions[0].dataset.price || 100;
+  }
+}
+
+function renderOrders() {
+  if (!STATE) return;
+  const q = (document.getElementById('order-search-input').value || '').trim().toLowerCase();
+  const orders = STATE.orders || [];
+
+  let toShip = 0, shipping = 0, completed = 0;
+  orders.forEach(o => {
+    const step = STATE.deliveryStatus[o.order_sn] ?? 0;
+    const isShipped = o.order_status === 'SHIPPED' || o.order_status === 'PROCESSED';
+    if (step === 4) completed++;
+    else if (o.order_status === 'READY_TO_SHIP') toShip++;
+    else if (isShipped) shipping++;
+  });
+
+  document.getElementById('sum-total-orders').textContent = orders.length;
+  document.getElementById('sum-toship').textContent = toShip;
+  document.getElementById('sum-shipping').textContent = shipping;
+  document.getElementById('sum-completed').textContent = completed;
+
+  const rows = orders.filter(o => {
+    const step = STATE.deliveryStatus[o.order_sn] ?? 0;
+    const isShipped = o.order_status === 'SHIPPED' || o.order_status === 'PROCESSED';
+    const fKey = step === 4 ? 'completed' : o.order_status === 'READY_TO_SHIP' ? 'toship' : isShipped ? 'shipping' : 'other';
+    if (ORDER_FILTER !== 'all' && fKey !== ORDER_FILTER) return false;
+    if (!q) return true;
+    return JSON.stringify(o).toLowerCase().includes(q);
+  });
+
+  const tbody = document.getElementById('orders-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#bbb">No matching orders.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(o => {
+    const tracking = STATE.trackingNumbers[o.order_sn] || o.tracking_no || '';
+    const step = STATE.deliveryStatus[o.order_sn];
+    const isShipped = o.order_status === 'SHIPPED' || o.order_status === 'PROCESSED';
+    const isDelivered = step === 4;
+    const statusLabel = isDelivered ? 'COMPLETED' : o.order_status === 'READY_TO_SHIP' ? 'To Ship' : isShipped ? 'Shipping' : o.order_status;
+    const statusCls = isDelivered ? 'completed' : o.order_status === 'READY_TO_SHIP' ? 'toship' : isShipped ? 'shipping' : 'default';
+    const itemCount = o.item_list.reduce((s, i) => s + i.model_quantity_purchased, 0);
+    const createDate = new Date(o.create_time * 1000).toLocaleString();
+
+    let actionBtn = '';
+    if (!isShipped) {
+      actionBtn = '<button class="sc-btn sc-btn-primary sc-btn-sm" onclick="shipOrder(\'' + o.order_sn + '\')">Arrange Shipment</button>';
+    } else if (!isDelivered) {
+      const nextStep = (step ?? 1) + 1;
+      const nextLabel = (STATE.deliverySteps && STATE.deliverySteps[nextStep]) || 'Delivered';
+      actionBtn = '<button class="sc-btn sc-btn-outline sc-btn-sm" onclick="advanceDelivery(\'' + o.order_sn + '\')">→ ' + nextLabel + '</button>' +
+        '<button class="sc-btn sc-btn-outline sc-btn-sm" onclick="window.open(\'/api/demo/print_label/' + o.order_sn + '\',\'_blank\')" style="margin-top:4px">Print Label</button>';
+    } else {
+      actionBtn = '<span class="sc-completed-tag">✓ Done</span>';
+    }
+
+    return '<tr>' +
+      '<td><div class="sc-order-id">' + o.order_sn + '</div><div class="sc-order-date">' + createDate + '</div></td>' +
+      '<td><div class="sc-product-name">' + o.item_list[0].item_name + (o.item_list.length > 1 ? ' <span class="sc-more">+' + (o.item_list.length - 1) + '</span>' : '') + '</div>' +
+      '<div class="sc-product-meta">' + itemCount + ' item(s) · ' + o.shipping_carrier + '</div></td>' +
+      '<td><div class="sc-buyer">' + o.recipient_address.name + '</div><div class="sc-buyer-city">' + o.recipient_address.city + '</div></td>' +
+      '<td class="sc-amount">₱' + o.total_amount.toLocaleString() + '</td>' +
+      '<td><span class="sc-status ' + statusCls + '">' + statusLabel + '</span></td>' +
+      '<td>' + (tracking ? '<a href="/track/' + tracking + '" target="_blank" class="sc-track-link">' + tracking + '</a>' : '<span class="sc-no-tracking">—</span>') + '</td>' +
+      '<td class="sc-actions">' + actionBtn + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function renderProducts() {
+  if (!STATE) return;
+  const products = STATE.products || [];
+  const syncedMap = STATE.syncedProducts || {};
+  document.getElementById('sum-prod-total').textContent = products.length;
+  document.getElementById('sum-prod-synced').textContent = Object.keys(syncedMap).length;
+
+  const tbody = document.getElementById('products-tbody');
+  tbody.innerHTML = products.map(p => {
+    const synced = syncedMap[p.item_id];
+    const stock = synced ? synced.stock : (p.stock !== undefined ? p.stock : 100);
+    const badge = synced
+      ? '<span class="sc-synced-tag">' + (synced.source || 'API') + '</span><span class="sc-sync-time">' + synced.last_sync + '</span>'
+      : '<span class="sc-synced-tag" style="background:#f1f5f9;color:#475569">Store Default</span>';
+    return '<tr>' +
+      '<td><div class="sc-prod-wrap"><div class="sc-prod-thumb"><span style="font-size:9px;font-weight:700;color:#EE4D2D">' + (p.sku || 'ITEM').split('-')[0] + '</span></div>' +
+      '<div><div class="sc-prod-name">' + p.name + '</div><div class="sc-prod-ids">Item ID: ' + p.item_id + ' · SKU: <strong>' + p.sku + '</strong></div></div></div></td>' +
+      '<td class="sc-price">₱' + p.price + '</td>' +
+      '<td><span class="sc-stock">' + stock + '</span></td>' +
+      '<td>' + badge + '</td>' +
+    '</tr>';
+  }).join('');
+}
+
+function toggleNewOrderForm() {
+  const f = document.getElementById('new-order-form');
+  f.style.display = f.style.display === 'none' || !f.style.display ? 'block' : 'none';
+}
+
+async function submitNewOrder() {
+  const sel = document.getElementById('nof-product');
+  const opt = sel.selectedOptions[0];
+  const body = {
+    name: document.getElementById('nof-name').value.trim(),
+    phone: document.getElementById('nof-phone').value.trim(),
+    city: document.getElementById('nof-city').value.trim(),
+    carrier: document.getElementById('nof-carrier').value,
+    item_id: Number(sel.value),
+    sku: opt.dataset.sku,
+    item_name: opt.dataset.name,
+    qty: Number(document.getElementById('nof-qty').value) || 1,
+    price: Number(document.getElementById('nof-price').value) || 100,
+  };
+  const res = await fetch('/api/demo/create_order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const d = await res.json();
+  toast('✅ Order ' + d.order_sn + ' created');
+  document.getElementById('new-order-form').style.display = 'none';
+  loadState();
+}
+
+async function shipOrder(sn) {
+  const res = await fetch('/api/demo/ship_order', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order_sn: sn }),
+  });
+  const d = await res.json();
+  toast('🚚 ' + sn + ' shipped — tracking: ' + d.tracking_number);
+  loadState();
+}
+
+async function advanceDelivery(sn) {
+  const res = await fetch('/api/demo/advance_delivery', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ order_sn: sn }),
+  });
+  const d = await res.json();
+  toast('📦 ' + sn + ' → ' + d.step_name);
+  loadState();
+}
+
+async function resetState() {
+  if (!confirm('Reset all orders, tracking numbers, and products back to defaults?')) return;
+  await fetch('/api/demo/reset', { method: 'POST' });
+  toast('🔄 State reset to defaults');
+  loadState();
+}
+
+loadState();
+</script>
+</body>
+</html>
