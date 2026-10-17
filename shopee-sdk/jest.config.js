@@ -1,0 +1,29 @@
+export default {
+  preset: "ts-jest/presets/default-esm",
+  testEnvironment: "node",
+  testTimeout: 60000,
+  testMatch: ["**/*.test.ts"],
+  collectCoverage: true,
+  collectCoverageFrom: [
+    "src/**/*.ts",
+    "!src/utils/spec-audit.ts",
+    "!src/__tests__/**/*.ts",
+    "!src/generator/**/*.ts",
+    "!src/schemas/**/*.ts",
+  ],
+  coverageDirectory: "coverage",
+  coverageReporters: ["text", "lcov"],
+  verbose: true,
+  extensionsToTreatAsEsm: [".ts"],
+  moduleNameMapper: {
+    "^(\\.{1,2}/.*)\\.js$": "$1",
+  },
+  transform: {
+    "^.+\\.tsx?$": [
+      "ts-jest",
+      {
+        useESM: true,
+      },
+    ],
+  },
+};

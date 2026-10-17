@@ -1,0 +1,21 @@
+# Dependencies & Build Artifacts
+node_modules/
+shopee-sdk/lib/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Runtime State, PID & Logs
+.shopee-mock.pid
+.shopee-mock.log
+shopee_mock_state.json
+*.log
+
+# OS / Editor
+.DS_Store
+.env
